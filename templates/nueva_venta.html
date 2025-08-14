@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva Venta{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Añadir Nueva Venta</h1>
+
+<div class="row">
+    <div class="col-md-7">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                Detalles de la Venta
+            </div>
+            <div class="card-body">
+                <form id="formNuevaVenta" action="{{ url_for('nueva_venta') }}" method="POST">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="cliente_cedula" class="form-label">Cédula del Cliente</label>
+                            <select class="form-control" id="cliente_cedula" name="cliente_cedula" required>
+                                <option value="">Selecciona un cliente</option>
+                                {% for cliente in clientes %}
+                                <option value="{{ cliente.cedula }}">{{ cliente.nombre }} ({{ cliente.cedula }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="metodo_pago" class="form-label">Método de Pago</label>
+                            <select class="form-control" id="metodo_pago" name="metodo_pago" required>
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Tarjeta">Tarjeta</option>
+                                <option value="Transferencia">Transferencia</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label for="descripcion_general" class="form-label">Descripción General (Opcional)</label>
+                            <textarea class="form-control" id="descripcion_general" name="descripcion_general" rows="2"></textarea>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h5 class="mb-3">Añadir Productos</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="producto_selector" class="form-label">Buscar y Seleccionar Producto</label>
+                            <input class="form-control" list="productosOptions" id="producto_selector" placeholder="Escribe para buscar..." required>
+                            <datalist id="productosOptions">
+                                {% for producto in productos %}
+                                <option data-id="{{ producto.id }}" data-nombre="{{ producto.nombre }}" data-precio="{{ producto.precio }}" data-stock="{{ producto.cantidad }}" value="{{ producto.nombre }} (Stock: {{ producto.cantidad }})"></option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="cantidad_input" class="form-label">Cantidad</label>
+                            <input type="number" class="form-control" id="cantidad_input" value="1" min="1" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="precio_input" class="form-label">Precio</label>
+                            <input type="number" class="form-control" id="precio_input" step="0.01" min="0" required>
+                        </div>
+                        <div class="col-12">
+                            <label for="descripcion_producto_input" class="form-label">Descripción del Producto (Opcional)</label>
+                            <input type="text" class="form-control" id="descripcion_producto_input">
+                        </div>
+                        <div class="col-12">
+                            <button type="button" class="btn btn-secondary" id="agregar-producto">Agregar Producto</button>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" name="total_venta" id="total_venta_input">
+                    <input type="hidden" name="productos_vendidos" id="productos_vendidos_input">
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Resumen de la Venta</h5>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <div id="productos-resumen-container" class="flex-grow-1 overflow-auto">
+                    <p class="text-muted text-center" id="texto-sin-productos">Aún no se han añadido productos.</p>
+                </div>
+                <hr>
+                <div class="text-end">
+                    <h4>Total: $<span id="total-venta">0.00</span></h4>
+                </div>
+                <div class="mt-3">
+                    <button type="button" class="btn btn-primary w-100" id="btn-finalizar-venta-summary">Finalizar Venta</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="confirmacionModal" tabindex="-1" aria-labelledby="confirmacionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmacionModalLabel">Confirmar Venta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Cliente:</strong> <span id="modal-cliente"></span></p>
+                <p><strong>Método de Pago:</strong> <span id="modal-metodo-pago"></span></p>
+                <p><strong>Total:</strong> <span id="modal-total"></span></p>
+                <hr>
+                <p><strong>Productos:</strong></p>
+                <ul id="modal-lista-productos"></ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-finalizar-venta-modal">Confirmar y Finalizar Venta</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let productosEnVenta = [];
+    const totalVentaSpan = document.getElementById('total-venta');
+    const totalVentaInput = document.getElementById('total_venta_input');
+    const productosVendidosInput = document.getElementById('productos_vendidos_input');
+    const productosResumenContainer = document.getElementById('productos-resumen-container');
+    const textoSinProductos = document.getElementById('texto-sin-productos');
+
+    const productoInput = document.getElementById('producto_selector');
+    const productosOptions = document.getElementById('productosOptions');
+    const precioInput = document.getElementById('precio_input');
+
+    function actualizarTotal() {
+        let total = productosEnVenta.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+        totalVentaSpan.textContent = total.toFixed(2);
+        totalVentaInput.value = total.toFixed(2);
+        
+        if (productosEnVenta.length > 0) {
+            textoSinProductos.style.display = 'none';
+        } else {
+            textoSinProductos.style.display = 'block';
+        }
+    }
+
+    function renderizarProductosEnVenta() {
+        productosResumenContainer.innerHTML = '';
+        if (productosEnVenta.length === 0) {
+            productosResumenContainer.appendChild(textoSinProductos);
+        }
+        productosEnVenta.forEach((producto, index) => {
+            const row = document.createElement('div');
+            row.className = 'row g-2 mb-2 align-items-center border-bottom pb-2';
+            row.innerHTML = `
+                <div class="col-8">
+                    <strong>${producto.nombre}</strong><br>
+                    <small>Cantidad: ${producto.cantidad} x $${producto.precio.toFixed(2)}</small>
+                </div>
+                <div class="col-3 text-end">
+                    $${(producto.cantidad * producto.precio).toFixed(2)}
+                </div>
+                <div class="col-1 text-end">
+                    <button type="button" class="btn btn-danger btn-sm eliminar-producto" data-index="${index}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+                <input type="hidden" name="descripcion_producto_${producto.id}" value="${producto.descripcion_producto}">
+            `;
+            productosResumenContainer.appendChild(row);
+        });
+        actualizarTotal();
+    }
+    
+    productoInput.addEventListener('change', function() {
+        const valorSeleccionado = this.value;
+        const opcion = productosOptions.querySelector(`[value='${valorSeleccionado}']`);
+        if (opcion) {
+            const precio = parseFloat(opcion.dataset.precio);
+            precioInput.value = precio.toFixed(2);
+        } else {
+            precioInput.value = "";
+        }
+    });
+
+    document.getElementById('agregar-producto').addEventListener('click', function() {
+        const valorSeleccionado = productoInput.value;
+        const opcion = productosOptions.querySelector(`[value='${valorSeleccionado}']`);
+
+        if (!opcion) {
+            alert('Por favor, selecciona un producto de la lista.');
+            return;
+        }
+
+        const id = opcion.dataset.id;
+        const cantidad = parseInt(document.getElementById('cantidad_input').value, 10);
+        const precio = parseFloat(precioInput.value);
+        const descripcion_producto = document.getElementById('descripcion_producto_input').value;
+
+        if (cantidad <= 0 || isNaN(precio) || precio <= 0) {
+            alert('Por favor, especifica una cantidad y un precio válidos.');
+            return;
+        }
+
+        const nombre = opcion.dataset.nombre;
+        const stock = parseInt(opcion.dataset.stock, 10);
+        
+        const productoExistenteIndex = productosEnVenta.findIndex(p => p.id === id);
+        let cantidadTotal = cantidad;
+        if (productoExistenteIndex !== -1) {
+            cantidadTotal += productosEnVenta[productoExistenteIndex].cantidad;
+        }
+
+        if (cantidadTotal > stock) {
+            alert(`No hay suficiente stock para este producto. Disponible: ${stock}`);
+            return;
+        }
+
+        if (productoExistenteIndex !== -1) {
+            productosEnVenta[productoExistenteIndex].cantidad += cantidad;
+            productosEnVenta[productoExistenteIndex].descripcion_producto += ` - ${descripcion_producto}`;
+        } else {
+            productosEnVenta.push({ id, nombre, precio, cantidad, descripcion_producto });
+        }
+        
+        renderizarProductosEnVenta();
+        productoInput.value = "";
+        document.getElementById('cantidad_input').value = 1;
+        precioInput.value = "";
+        document.getElementById('descripcion_producto_input').value = "";
+    });
+
+    productosResumenContainer.addEventListener('click', function(e) {
+        if (e.target.classList.contains('eliminar-producto') || e.target.closest('.eliminar-producto')) {
+            const button = e.target.closest('.eliminar-producto');
+            const index = button.dataset.index;
+            productosEnVenta.splice(index, 1);
+            renderizarProductosEnVenta();
+        }
+    });
+
+    document.getElementById('btn-finalizar-venta-summary').addEventListener('click', function() {
+        if (productosEnVenta.length === 0) {
+            alert('No puedes registrar una venta sin productos.');
+            return;
+        }
+        
+        const cliente_cedula_select = document.getElementById('cliente_cedula');
+        if (!cliente_cedula_select.value) {
+            alert('Debes seleccionar un cliente para registrar la venta.');
+            return;
+        }
+
+        const cliente_nombre = cliente_cedula_select.options[cliente_cedula_select.selectedIndex].text;
+        const metodo_pago_text = document.getElementById('metodo_pago').options[document.getElementById('metodo_pago').selectedIndex].text;
+
+        document.getElementById('modal-cliente').textContent = cliente_nombre;
+        document.getElementById('modal-metodo-pago').textContent = metodo_pago_text;
+        document.getElementById('modal-total').textContent = `$${totalVentaSpan.textContent}`;
+        
+        const modalProductosLista = document.getElementById('modal-lista-productos');
+        modalProductosLista.innerHTML = '';
+        productosEnVenta.forEach(producto => {
+            const li = document.createElement('li');
+            li.textContent = `${producto.nombre} x${producto.cantidad} - Subtotal: $${(producto.precio * producto.cantidad).toFixed(2)}`;
+            modalProductosLista.appendChild(li);
+        });
+
+        const confirmacionModal = new bootstrap.Modal(document.getElementById('confirmacionModal'));
+        confirmacionModal.show();
+    });
+
+    document.getElementById('btn-finalizar-venta-modal').addEventListener('click', function() {
+        productosVendidosInput.value = JSON.stringify(productosEnVenta);
+        document.getElementById('formNuevaVenta').submit();
+    });
+
+    // Inicializar el renderizado para mostrar el texto "Aún no se han añadido productos."
+    renderizarProductosEnVenta();
+</script>
+{% endblock %}

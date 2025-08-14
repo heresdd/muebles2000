@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Ventas{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Historial de Ventas</h1>
+
+<div class="card mb-4">
+    <div class="card-header">Buscador de Ventas</div>
+    <div class="card-body">
+        <form action="{{ url_for('historial_ventas') }}" method="GET">
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <label for="query" class="form-label">Nombre o Cédula del Cliente</label>
+                    <input type="text" class="form-control" id="query" name="query" value="{{ query }}" placeholder="Buscar cliente...">
+                </div>
+                <div class="col-md-3">
+                    <label for="fecha_inicio" class="form-label">Fecha de Inicio</label>
+                    <input type="date" class="form-control" id="fecha_inicio" name="fecha_inicio" value="{{ fecha_inicio }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="fecha_fin" class="form-label">Fecha de Fin</label>
+                    <input type="date" class="form-control" id="fecha_fin" name="fecha_fin" value="{{ fecha_fin }}">
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="accordion" id="accordionVentas">
+    {% for venta in ventas %}
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="heading{{ loop.index }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}" aria-expanded="false" aria-controls="collapse{{ loop.index }}">
+                <div class="row w-100 align-items-center">
+                    <div class="col-md-3"><strong>Venta ID:</strong> {{ venta.id }}</div>
+                    <div class="col-md-3"><strong>Cliente:</strong> {{ venta.nombre_cliente }} ({{ venta.cedula_cliente }})</div>
+                    <div class="col-md-3"><strong>Fecha:</strong> {{ venta.fecha.strftime('%Y-%m-%d %H:%M') }}</div>
+                    <div class="col-md-3 text-end"><strong>Total:</strong> ${{ "{:,.2f}".format(venta.total) }}</div>
+                </div>
+            </button>
+        </h2>
+        <div id="collapse{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="heading{{ loop.index }}" data-bs-parent="#accordionVentas">
+            <div class="accordion-body">
+                <p><strong>Método de Pago:</strong> {{ venta.metodo_pago }}</p>
+                <p><strong>Descripción:</strong> {{ venta.descripcion or 'N/A' }}</p>
+                <h6 class="mt-3">Productos Vendidos:</h6>
+                <ul class="list-group">
+                    {% for producto in venta.detalle %}
+                    <li class="list-group-item">
+                        {{ producto.nombre_producto }} - Cantidad: {{ producto.cantidad }} - Precio Unitario: ${{ "{:,.2f}".format(producto.precio_unitario) }}
+                        {% if producto.descripcion %}
+                            <br><small>Descripción: {{ producto.descripcion }}</small>
+                        {% endif %}
+                    </li>
+                    {% else %}
+                    <li class="list-group-item">No se encontraron productos para esta venta.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">No hay ventas registradas que coincidan con la búsqueda.</div>
+    {% endfor %}
+</div>
+
+<script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+{% endblock %}
