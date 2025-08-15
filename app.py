@@ -1,15 +1,29 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
-from conexion import conectar
-import mysql.connector
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import pandas as pd
 from fpdf import FPDF
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Carga las variables de entorno del archivo .env
+load_dotenv()
 
 app = Flask(__name__)
-# ¡IMPORTANTE! Cambia esta clave secreta por una cadena larga y aleatoria.
-app.secret_key = 'b8a9d8c7c6e5a4b3f2e1d0c9b8a7f6e5d4c3b2a1e0d9c8b7'
+# ¡IMPORTANTE! Cambia esta clave secreta
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret_key_if_not_set')
+
+# Función para conectar a la base de datos PostgreSQL
+def connect_to_db():
+    try:
+        conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+        return conn
+    except psycopg2.Error as err:
+        print(f"Error de conexión a la base de datos: {err}")
+        raise err
 
 # Decorador para proteger rutas
 def login_required(f):
@@ -33,11 +47,11 @@ def rol_required(rol_permitido):
         return decorated_function
     return decorator
 
+# --- RUTAS DE INVENTARIO ---
+
 @app.route('/')
 def index():
     return render_template('index.html')
-
-# --- RUTAS DE INVENTARIO ---
 
 @app.route('/inventario')
 @login_required
@@ -45,14 +59,16 @@ def inventario():
     productos = []
     query = request.args.get('query', '')
     
+    db = None
+    cursor = None
     try:
-        db = conectar()
-        cursor = db.cursor(dictionary=True)
+        db = connect_to_db()
+        cursor = db.cursor(cursor_factory=RealDictCursor)
         sql_query = "SELECT * FROM productos"
         params = []
         
         if query:
-            sql_query += " WHERE nombre LIKE %s OR categoria LIKE %s OR color LIKE %s"
+            sql_query += " WHERE nombre ILIKE %s OR categoria ILIKE %s OR color ILIKE %s"
             search_param = f"%{query}%"
             params.extend([search_param, search_param, search_param])
         
@@ -60,12 +76,11 @@ def inventario():
         
         cursor.execute(sql_query, params)
         productos = cursor.fetchall()
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Error de base de datos: {err}", "danger")
     finally:
-        if 'db' in locals() and db.is_connected():
-            cursor.close()
-            db.close()
+        if cursor: cursor.close()
+        if db: db.close()
             
     return render_template('inventario.html', productos=productos, query=query)
 
@@ -81,19 +96,20 @@ def nuevo_producto():
         cantidad = request.form['cantidad']
         descripcion = request.form['descripcion']
 
+        db = None
+        cursor = None
         try:
-            db = conectar()
+            db = connect_to_db()
             cursor = db.cursor()
             cursor.execute("INSERT INTO productos (nombre, categoria, color, precio, cantidad, descripcion) VALUES (%s, %s, %s, %s, %s, %s)",
                            (nombre, categoria, color, precio, cantidad, descripcion))
             db.commit()
             flash("Producto registrado exitosamente.", "success")
-        except mysql.connector.Error as err:
+        except psycopg2.Error as err:
             flash(f"Error al registrar el producto: {err}", "danger")
         finally:
-            if 'db' in locals() and db.is_connected():
-                cursor.close()
-                db.close()
+            if cursor: cursor.close()
+            if db: db.close()
     return redirect(url_for('inventario'))
 
 @app.route('/inventario/editar', methods=['POST'])
@@ -109,37 +125,39 @@ def editar_producto():
         cantidad = request.form['cantidad']
         descripcion = request.form['descripcion']
         
+        db = None
+        cursor = None
         try:
-            db = conectar()
+            db = connect_to_db()
             cursor = db.cursor()
             cursor.execute("UPDATE productos SET nombre = %s, categoria = %s, color = %s, precio = %s, cantidad = %s, descripcion = %s WHERE id = %s",
                            (nombre, categoria, color, precio, cantidad, descripcion, producto_id))
             db.commit()
             flash("Producto actualizado exitosamente.", "success")
-        except mysql.connector.Error as err:
+        except psycopg2.Error as err:
             flash(f"Error al actualizar el producto: {err}", "danger")
         finally:
-            if 'db' in locals() and db.is_connected():
-                cursor.close()
-                db.close()
+            if cursor: cursor.close()
+            if db: db.close()
     return redirect(url_for('inventario'))
 
 @app.route('/inventario/eliminar/<int:producto_id>', methods=['POST'])
 @login_required
 @rol_required('gerente')
 def eliminar_producto(producto_id):
+    db = None
+    cursor = None
     try:
-        db = conectar()
+        db = connect_to_db()
         cursor = db.cursor()
         cursor.execute("DELETE FROM productos WHERE id = %s", (producto_id,))
         db.commit()
         flash("Producto eliminado exitosamente.", "success")
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Error al eliminar el producto: {err}", "danger")
     finally:
-        if 'db' in locals() and db.is_connected():
-            cursor.close()
-            db.close()
+        if cursor: cursor.close()
+        if db: db.close()
     return redirect(url_for('inventario'))
 
 # --- RUTAS DE AUTENTICACIÓN ---
@@ -147,23 +165,23 @@ def eliminar_producto(producto_id):
 @app.route('/registro', methods=['GET', 'POST'])
 def registro():
     hay_usuarios = False
+    db = None
+    cursor = None
     try:
-        db = conectar()
+        db = connect_to_db()
         cursor = db.cursor()
         cursor.execute("SELECT COUNT(*) FROM usuarios")
         count = cursor.fetchone()[0]
         if count > 0:
             hay_usuarios = True
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Error al conectar con la base de datos: {err}", "danger")
-        if 'db' in locals() and db.is_connected():
-            cursor.close()
-            db.close()
-            return redirect(url_for('index'))
+        if cursor: cursor.close()
+        if db: db.close()
+        return redirect(url_for('index'))
     finally:
-        if 'db' in locals() and db.is_connected():
-            cursor.close()
-            db.close()
+        if cursor: cursor.close()
+        if db: db.close()
 
     if hay_usuarios and (not session.get('loggedin') or session.get('rol') != 'gerente'):
         flash("No tienes permisos para registrar nuevos usuarios.", "danger")
@@ -179,19 +197,20 @@ def registro():
             
         hashed_password = generate_password_hash(password)
         
+        db = None
+        cursor = None
         try:
-            db = conectar()
+            db = connect_to_db()
             cursor = db.cursor()
             cursor.execute("INSERT INTO usuarios (username, password, rol) VALUES (%s, %s, %s)", (username, hashed_password, rol))
             db.commit()
             flash(f"Usuario {username} registrado exitosamente como {rol}.", "success")
             return redirect(url_for('login'))
-        except mysql.connector.Error as err:
+        except psycopg2.Error as err:
             flash(f"Error al registrar el usuario: {err}", "danger")
         finally:
-            if 'db' in locals() and db.is_connected():
-                cursor.close()
-                db.close()
+            if cursor: cursor.close()
+            if db: db.close()
     
     return render_template('registro.html', hay_usuarios=hay_usuarios)
 
@@ -201,9 +220,11 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
+        db = None
+        cursor = None
         try:
-            db = conectar()
-            cursor = db.cursor(dictionary=True)
+            db = connect_to_db()
+            cursor = db.cursor(cursor_factory=RealDictCursor)
             cursor.execute("SELECT * FROM usuarios WHERE username = %s", (username,))
             user = cursor.fetchone()
             
@@ -216,12 +237,11 @@ def login():
                 return redirect(url_for('inventario'))
             else:
                 flash("Nombre de usuario o contraseña incorrectos.", "danger")
-        except mysql.connector.Error as err:
+        except psycopg2.Error as err:
             flash(f"Error al conectar con la base de datos: {err}", "danger")
         finally:
-            if 'db' in locals() and db.is_connected():
-                cursor.close()
-                db.close()
+            if cursor: cursor.close()
+            if db: db.close()
 
     return render_template('login.html')
 
@@ -248,8 +268,10 @@ def nueva_venta():
         import json
         productos_vendidos = json.loads(productos_json)
         
+        db = None
+        cursor = None
         try:
-            db = conectar()
+            db = connect_to_db()
             cursor = db.cursor()
             db.autocommit = False 
             
@@ -263,15 +285,15 @@ def nueva_venta():
             
             cliente_id = cliente_id[0]
             
-            cursor.execute("INSERT INTO ventas (id_cliente, fecha, total, metodo_pago, descripcion) VALUES (%s, NOW(), %s, %s, %s)",
+            cursor.execute("INSERT INTO ventas (id_cliente, fecha, total, metodo_pago, descripcion) VALUES (%s, NOW(), %s, %s, %s) RETURNING id",
                            (cliente_id, total_venta, metodo_pago, descripcion))
-            venta_id = cursor.lastrowid
+            venta_id = cursor.fetchone()[0]
             
             for producto in productos_vendidos:
                 id_producto = producto['id']
                 cantidad_vendida = producto['cantidad']
                 
-                cursor.execute("SELECT cantidad FROM productos WHERE id = %s", (id_producto,))
+                cursor.execute("SELECT cantidad FROM productos WHERE id = %s FOR UPDATE", (id_producto,))
                 stock_actual = cursor.fetchone()[0]
                 
                 if stock_actual < cantidad_vendida:
@@ -288,30 +310,30 @@ def nueva_venta():
             flash(f"Venta ID {venta_id} registrada exitosamente.", "success")
             return redirect(url_for('inventario'))
             
-        except mysql.connector.Error as err:
+        except psycopg2.Error as err:
             flash(f"Error en la transacción: {err}", "danger")
             db.rollback()
             return redirect(url_for('nueva_venta'))
         finally:
-            if 'db' in locals() and db.is_connected():
-                cursor.close()
-                db.close()
+            if cursor: cursor.close()
+            if db: db.close()
     
     clientes = []
     productos = []
+    db = None
+    cursor = None
     try:
-        db = conectar()
-        cursor = db.cursor(dictionary=True)
+        db = connect_to_db()
+        cursor = db.cursor(cursor_factory=RealDictCursor)
         cursor.execute("SELECT id, nombre, cedula FROM clientes")
         clientes = cursor.fetchall()
         cursor.execute("SELECT id, nombre, precio, cantidad FROM productos")
         productos = cursor.fetchall()
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         print(f"Error de base de datos: {err}")
     finally:
-        if 'db' in locals() and db.is_connected():
-            cursor.close()
-            db.close()
+        if cursor: cursor.close()
+        if db: db.close()
             
     return render_template('nueva_venta.html', clientes=clientes, productos=productos)
 
@@ -323,9 +345,11 @@ def historial_ventas():
     fecha_inicio = request.args.get('fecha_inicio', '')
     fecha_fin = request.args.get('fecha_fin', '')
 
+    db = None
+    cursor = None
     try:
-        db = conectar()
-        cursor = db.cursor(dictionary=True)
+        db = connect_to_db()
+        cursor = db.cursor(cursor_factory=RealDictCursor)
 
         sql_query = """
             SELECT
@@ -344,7 +368,7 @@ def historial_ventas():
         params = []
         
         if query:
-            conditions.append("(c.nombre LIKE %s OR c.cedula LIKE %s)")
+            conditions.append("(c.nombre ILIKE %s OR c.cedula ILIKE %s)")
             params.extend([f"%{query}%", f"%{query}%"])
 
         if fecha_inicio:
@@ -363,7 +387,6 @@ def historial_ventas():
         cursor.execute(sql_query, params)
         ventas = cursor.fetchall()
         
-        # Para cada venta, obtenemos los productos vendidos
         for venta in ventas:
             cursor.execute("""
                 SELECT
@@ -377,12 +400,11 @@ def historial_ventas():
             """, (venta['id'],))
             venta['detalle'] = cursor.fetchall()
             
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Error al cargar el historial de ventas: {err}", "danger")
     finally:
-        if 'db' in locals() and db.is_connected():
-            cursor.close()
-            db.close()
+        if cursor: cursor.close()
+        if db: db.close()
             
     return render_template('historial_ventas.html', ventas=ventas, query=query, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin)
 
@@ -401,9 +423,11 @@ def generar_reporte_ventas():
     end_date = request.form.get('end_date')
     
     ventas = []
+    db = None
+    cursor = None
     try:
-        db = conectar()
-        cursor = db.cursor(dictionary=True)
+        db = connect_to_db()
+        cursor = db.cursor(cursor_factory=RealDictCursor)
         sql_query = """
             SELECT
                 v.id,
@@ -415,18 +439,17 @@ def generar_reporte_ventas():
                 v.descripcion
             FROM ventas v
             JOIN clientes c ON v.id_cliente = c.id
-            WHERE v.fecha BETWEEN %s AND %s
+            WHERE v.fecha::date BETWEEN %s::date AND %s::date
             ORDER BY v.fecha DESC
         """
         cursor.execute(sql_query, (start_date, end_date))
         ventas = cursor.fetchall()
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Error al generar el reporte: {err}", "danger")
         return redirect(url_for('reportes_ventas'))
     finally:
-        if 'db' in locals() and db.is_connected():
-            cursor.close()
-            db.close()
+        if cursor: cursor.close()
+        if db: db.close()
             
     if not ventas:
         flash("No se encontraron ventas para el rango de fechas seleccionado.", "info")
@@ -489,15 +512,17 @@ def generar_reporte_ventas():
 def clientes():
     clientes_list = []
     query = request.args.get('query', '')
+    db = None
+    cursor = None
     try:
-        db = conectar()
-        cursor = db.cursor(dictionary=True)
+        db = connect_to_db()
+        cursor = db.cursor(cursor_factory=RealDictCursor)
         
         sql_query = "SELECT * FROM clientes"
         params = []
         
         if query:
-            sql_query += " WHERE nombre LIKE %s OR cedula LIKE %s OR telefono LIKE %s OR direccion LIKE %s"
+            sql_query += " WHERE nombre ILIKE %s OR cedula ILIKE %s OR telefono ILIKE %s OR direccion ILIKE %s"
             search_param = f"%{query}%"
             params.extend([search_param, search_param, search_param, search_param])
         
@@ -505,12 +530,11 @@ def clientes():
         
         cursor.execute(sql_query, params)
         clientes_list = cursor.fetchall()
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Error al cargar la lista de clientes: {err}", "danger")
     finally:
-        if 'db' in locals() and db.is_connected():
-            cursor.close()
-            db.close()
+        if cursor: cursor.close()
+        if db: db.close()
     return render_template('clientes.html', clientes=clientes_list, query=query)
 
 @app.route('/clientes/nuevo', methods=['POST'])
@@ -523,19 +547,20 @@ def nuevo_cliente():
         telefono = request.form['telefono']
         direccion = request.form['direccion']
         
+        db = None
+        cursor = None
         try:
-            db = conectar()
+            db = connect_to_db()
             cursor = db.cursor()
             cursor.execute("INSERT INTO clientes (nombre, cedula, telefono, direccion) VALUES (%s, %s, %s, %s)",
                            (nombre, cedula, telefono, direccion))
             db.commit()
             flash("Cliente registrado exitosamente.", "success")
-        except mysql.connector.Error as err:
+        except psycopg2.Error as err:
             flash(f"Error al registrar el cliente: {err}", "danger")
         finally:
-            if 'db' in locals() and db.is_connected():
-                cursor.close()
-                db.close()
+            if cursor: cursor.close()
+            if db: db.close()
 
         redirect_to = request.form.get('redirect_to')
         if redirect_to:
@@ -553,37 +578,39 @@ def editar_cliente():
         cedula = request.form['cedula']
         telefono = request.form['telefono']
         direccion = request.form['direccion']
+        db = None
+        cursor = None
         try:
-            db = conectar()
+            db = connect_to_db()
             cursor = db.cursor()
             cursor.execute("UPDATE clientes SET nombre = %s, cedula = %s, telefono = %s, direccion = %s WHERE id = %s",
                            (nombre, cedula, telefono, direccion, cliente_id))
             db.commit()
             flash("Cliente actualizado exitosamente.", "success")
-        except mysql.connector.Error as err:
+        except psycopg2.Error as err:
             flash(f"Error al actualizar el cliente: {err}", "danger")
         finally:
-            if 'db' in locals() and db.is_connected():
-                cursor.close()
-                db.close()
+            if cursor: cursor.close()
+            if db: db.close()
     return redirect(url_for('clientes'))
 
 @app.route('/clientes/eliminar/<int:cliente_id>', methods=['POST'])
 @login_required
 @rol_required('gerente')
 def eliminar_cliente(cliente_id):
+    db = None
+    cursor = None
     try:
-        db = conectar()
+        db = connect_to_db()
         cursor = db.cursor()
         cursor.execute("DELETE FROM clientes WHERE id = %s", (cliente_id,))
         db.commit()
         flash("Cliente eliminado exitosamente.", "success")
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Error al eliminar el cliente: {err}", "danger")
     finally:
-        if 'db' in locals() and db.is_connected():
-            cursor.close()
-            db.close()
+        if cursor: cursor.close()
+        if db: db.close()
     return redirect(url_for('clientes'))
 
 if __name__ == '__main__':

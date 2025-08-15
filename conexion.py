@@ -1,9 +1,11 @@
-import mysql.connector
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-def conectar():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",           # Cambia si tienes otro usuario
-        password="muebles2000",   # Coloca aquí tu contraseña de MySQL
-        database="muebles2000"
-    )
+def connect_to_db():
+    try:
+        conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+        return conn
+    except psycopg2.Error as err:
+        print(f"Error de conexión a la base de datos: {err}")
+        raise err
