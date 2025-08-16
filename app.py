@@ -19,7 +19,14 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret_key_if_not_set')
 # Función para conectar a la base de datos PostgreSQL
 def connect_to_db():
     try:
-        conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+        conn = psycopg2.connect(
+        dbname="muebles2000",
+        user="postgres",
+        password="G653KGKl4xovLOiTNai8RVxv5dh6s2tf",
+        host="dpg-d2fmd8ruibrs73a60p00-a.pg.render.com",
+        port="5432",
+        sslmode="require"
+                        )
         return conn
     except psycopg2.Error as err:
         print(f"Error de conexión a la base de datos: {err}")
