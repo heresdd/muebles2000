@@ -18,19 +18,31 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret_key_if_not_set')
 
 # Función para conectar a la base de datos PostgreSQL
 def connect_to_db():
+    """
+    Establece una conexión a la base de datos PostgreSQL usando una URL
+    de conexión de las variables de entorno.
+    """
+    
+    # Intenta obtener la URL de la base de datos de las variables de entorno de Render
+    # En producción, esta variable estará configurada.
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    
+    
+    if DATABASE_URL is None:
+        print("La variable de entorno DATABASE_URL no está configurada. Usando la conexión local.")
+        # Ejemplo para desarrollo local con PostgreSQL
+        # Asegúrate de que tu base de datos local esté corriendo y tenga el nombre correcto
+        DATABASE_URL = 'postgresql://muebles2000:EKkZse0YLnEEOJ0wdrAFjT4Uihu63eEN@dpg-d2ivioali9vc73bdgvq0-a/muebles2000_fwm0'
+
+
     try:
-        conn = psycopg2.connect(
-        dbname="muebles2000",
-        user="postgres",
-        password="G653KGKl4xovLOiTNai8RVxv5dh6s2tf",
-        host="dpg-d2fmd8ruibrs73a60p00-a.pg.render.com",
-        port="5432",
-        sslmode="require"
-                        )
+        # La librería psycopg2 puede conectarse directamente con la URL
+        conn = psycopg2.connect(DATABASE_URL)
         return conn
-    except psycopg2.Error as err:
-        print(f"Error de conexión a la base de datos: {err}")
-        raise err
+    except Exception as e:
+        print(f"Error al conectar con la base de datos: {e}")
+        # Lanza la excepción para que el resto de la aplicación lo sepa
+        raise e
 
 # Decorador para proteger rutas
 def login_required(f):
