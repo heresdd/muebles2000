@@ -6,6 +6,7 @@
     <title>{% block title %}Muebles 2000{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    
     <style>
         body {
             display: flex;
@@ -18,11 +19,13 @@
             color: white;
             padding-top: 20px;
             flex-shrink: 0;
-            transition: margin-left .5s; /* Add a transition for a smooth animation */
-            height: 100vh; /* Ensure the sidebar takes full height */
+            transition: margin-left .5s;
+            height: 100vh;
+            position: fixed; /* Fix the sidebar position */
+            z-index: 1020;
         }
         .sidebar.collapsed {
-            margin-left: -250px; /* Hide the sidebar by shifting it off-screen */
+            margin-left: -250px;
         }
         .sidebar .nav-link {
             color: #adb5bd;
@@ -40,8 +43,10 @@
         .main-content {
             flex-grow: 1;
             padding: 20px;
-            padding-top: 80px;
-            transition: margin-left .5s; /* Add transition for main content as well */
+            margin-left: 250px; /* Space for the sidebar */
+            padding-top: 80px; /* Space for the top navbar */
+            transition: margin-left .5s;
+            width: 100%;
         }
         .main-content.expanded {
             margin-left: 0;
@@ -58,6 +63,18 @@
             font-size: 1.5rem;
             margin-left: 10px;
         }
+        /* Mobile-first adjustments for small screens */
+        @media (max-width: 991.98px) {
+            .sidebar {
+                margin-left: -250px;
+            }
+            .sidebar.collapsed {
+                margin-left: 0;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -65,10 +82,10 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top top-navbar">
         <div class="container-fluid">
             {% if 'loggedin' in session %}
-            <button id="sidebar-toggle" class="btn btn-dark d-block d-lg-none" aria-label="Toggle sidebar">
+            <button id="sidebar-toggle" class="btn btn-dark d-block d-md-none" aria-label="Toggle sidebar">
                 <i class="fas fa-bars"></i>
             </button>
-            <a class="navbar-brand d-block d-lg-none" href="{{ url_for('index') }}">Muebles 2000</a>
+            <a class="navbar-brand d-none d-lg-block" href="{{ url_for('index') }}">Muebles 2000</a>
             {% endif %}
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -154,20 +171,27 @@
         document.getElementById('sidebar-toggle').addEventListener('click', function() {
             var sidebar = document.querySelector('.sidebar');
             var mainContent = document.querySelector('.main-content');
-            var icon = this.querySelector('i');
-
-            if (sidebar.classList.contains('collapsed')) {
-                sidebar.classList.remove('collapsed');
-                mainContent.classList.remove('expanded');
-                icon.classList.remove('fa-arrow-right');
-                icon.classList.add('fa-bars');
-            } else {
-                sidebar.classList.add('collapsed');
-                mainContent.classList.add('expanded');
-                icon.classList.remove('fa-bars');
-                icon.classList.add('fa-arrow-right');
-            }
+            
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
         });
+
+        // Toggle visibility based on screen size
+        function toggleSidebarOnResize() {
+            var sidebar = document.querySelector('.sidebar');
+            var mainContent = document.querySelector('.main-content');
+            if (window.innerWidth < 992) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.remove('expanded');
+            } else {
+                sidebar.classList.remove('collapsed');
+                mainContent.classList.add('expanded');
+            }
+        }
+        
+        // Initial check and event listener
+        toggleSidebarOnResize();
+        window.addEventListener('resize', toggleSidebarOnResize);
     </script>
 </body>
 </html>
