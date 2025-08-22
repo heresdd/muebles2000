@@ -201,10 +201,6 @@ def registro():
     finally:
         if cursor: cursor.close()
         if db: db.close()
-
-    if hay_usuarios and (not session.get('loggedin') or session.get('rol') != 'gerente'):
-        flash("No tienes permisos para registrar nuevos usuarios.", "danger")
-        return redirect(url_for('index'))
     
     if request.method == 'POST':
         username = request.form['username']
