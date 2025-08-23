@@ -16,12 +16,8 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="cliente_cedula" class="form-label">Cédula del Cliente</label>
-                            <select class="form-control" id="cliente_cedula" name="cliente_cedula" required>
-                                <option value="">Selecciona un cliente</option>
-                                {% for cliente in clientes %}
-                                <option value="{{ cliente.cedula }}">{{ cliente.nombre }} ({{ cliente.cedula }})</option>
-                                {% endfor %}
-                            </select>
+                            <input type="text" class="form-control" id="cliente_cedula_input" name="cliente_cedula" required autocomplete="off" list="clientes_list">
+                            <datalist id="clientes_list"></datalist>
                         </div>
                         <div class="col-md-6">
                             <label for="metodo_pago" class="form-label">Método de Pago</label>
@@ -274,7 +270,35 @@
         productosVendidosInput.value = JSON.stringify(productosEnVenta);
         document.getElementById('formNuevaVenta').submit();
     });
+    document.addEventListener('DOMContentLoaded', function() {
+        const clienteInput = document.getElementById('cliente_cedula_input');
+        const clientesList = document.getElementById('clientes_list');
 
+        clienteInput.addEventListener('input', async function() {
+            const query = this.value;
+            if (query.length < 2) {
+                clientesList.innerHTML = '';
+                return;
+            }
+
+            try {
+                // Llama a la nueva ruta en el servidor para buscar clientes
+                const response = await fetch(`/buscar_cliente?q=${query}`);
+                const clientes = await response.json();
+                
+                clientesList.innerHTML = '';
+                clientes.forEach(cliente => {
+                    const option = document.createElement('option');
+                    option.value = cliente.cedula;
+                    option.textContent = `${cliente.nombre} (${cliente.cedula})`;
+                    clientesList.appendChild(option);
+                });
+
+            } catch (error) {
+                console.error('Error al buscar clientes:', error);
+            }
+        });
+    });
     // Inicializar el renderizado para mostrar el texto "Aún no se han añadido productos."
     renderizarProductosEnVenta();
 </script>
