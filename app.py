@@ -181,53 +181,7 @@ def eliminar_producto(producto_id):
 
 # --- RUTAS DE AUTENTICACIÓN ---
 
-@app.route('/registro', methods=['GET', 'POST'])
-def registro():
-    hay_usuarios = False
-    db = None
-    cursor = None
-    try:
-        db = connect_to_db()
-        cursor = db.cursor()
-        cursor.execute("SELECT COUNT(*) FROM usuarios")
-        count = cursor.fetchone()[0]
-        if count > 0:
-            hay_usuarios = True
-    except psycopg2.Error as err:
-        flash(f"Error al conectar con la base de datos: {err}", "danger")
-        if cursor: cursor.close()
-        if db: db.close()
-        return redirect(url_for('index'))
-    finally:
-        if cursor: cursor.close()
-        if db: db.close()
-    
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        rol = request.form.get('rol', 'trabajador')
-        
-        if not hay_usuarios:
-            rol = 'gerente'
-            
-        hashed_password = generate_password_hash(password)
-        
-        db = None
-        cursor = None
-        try:
-            db = connect_to_db()
-            cursor = db.cursor()
-            cursor.execute("INSERT INTO usuarios (username, password, rol) VALUES (%s, %s, %s)", (username, hashed_password, rol))
-            db.commit()
-            flash(f"Usuario {username} registrado exitosamente como {rol}.", "success")
-            return redirect(url_for('login'))
-        except psycopg2.Error as err:
-            flash(f"Error al registrar el usuario: {err}", "danger")
-        finally:
-            if cursor: cursor.close()
-            if db: db.close()
-    
-    return render_template('registro.html', hay_usuarios=hay_usuarios)
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -351,7 +305,31 @@ def nueva_venta():
         if db: db.close()
             
     return render_template('nueva_venta.html', clientes=clientes, productos=productos)
+@app.route('/buscar_cliente')
+def buscar_cliente():
+    if 'loggedin' not in session:
+        return jsonify({"error": "No logueado"}), 401
 
+    nombre_cliente = request.args.get('q', '')
+
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
+        
+        # Sentencia SQL para buscar clientes que contengan el texto
+        cursor.execute("SELECT nombre FROM clientes WHERE nombre ILIKE %s ORDER BY nombre LIMIT 10", (f'%{nombre_cliente}%',))
+        
+        clientes = [row[0] for row in cursor.fetchall()]
+        
+        return jsonify(clientes)
+
+    except (Exception, psycopg2.Error) as error:
+        print(f"Error al buscar clientes: {error}")
+        return jsonify({"error": "Error interno del servidor"}), 500
+    finally:
+        if conn:
+            cursor.close()
+            conn.close()
 @app.route('/historial/ventas')
 @login_required
 def historial_ventas():
