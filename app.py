@@ -181,8 +181,6 @@ def eliminar_producto(producto_id):
 
 # --- RUTAS DE AUTENTICACIÓN ---
 
-
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -305,31 +303,33 @@ def nueva_venta():
         if db: db.close()
             
     return render_template('nueva_venta.html', clientes=clientes, productos=productos)
+
 @app.route('/buscar_cliente')
 def buscar_cliente():
     if 'loggedin' not in session:
         return jsonify({"error": "No logueado"}), 401
 
-    nombre_cliente = request.args.get('q', '')
-
+    q = request.args.get('q', '')
+    
+    db = None
+    cursor = None
     try:
-        conn = conectar()
-        cursor = conn.cursor()
-        
-        # Sentencia SQL para buscar clientes que contengan el texto
-        cursor.execute("SELECT nombre FROM clientes WHERE nombre ILIKE %s ORDER BY nombre LIMIT 10", (f'%{nombre_cliente}%',))
-        
-        clientes = [row[0] for row in cursor.fetchall()]
-        
-        return jsonify(clientes)
+        db = connect_to_db()
+        cursor = db.cursor()
+        # Buscar por cédula
+        cursor.execute("SELECT cedula, nombre FROM clientes WHERE cedula ILIKE %s ORDER BY cedula LIMIT 10", (f'%{q}%',))
+        clientes = cursor.fetchall()
+        # Formatear la respuesta: list of dict con cedula y nombre
+        resultados = [{'cedula': row[0], 'nombre': row[1]} for row in clientes]
+        return jsonify(resultados)
 
-    except (Exception, psycopg2.Error) as error:
+    except Exception as error:
         print(f"Error al buscar clientes: {error}")
         return jsonify({"error": "Error interno del servidor"}), 500
     finally:
-        if conn:
-            cursor.close()
-            conn.close()
+        if cursor: cursor.close()
+        if db: db.close()
+
 @app.route('/historial/ventas')
 @login_required
 def historial_ventas():
@@ -480,7 +480,7 @@ def generar_reporte_ventas():
                 self.set_font('Arial', '', 10)
                 for index, row in data.iterrows():
                     self.cell(0, 6, f"ID de Venta: {row['id']}", 0, 1)
-                    self.cell(0, 6, f"Fecha: {row['fecha']}", 0, 1)
+                    self.cell(0, 6, f"Fecha: {row['fenda']}", 0, 1)
                     self.cell(0, 6, f"Cliente: {row['nombre_cliente']} ({row['cedula_cliente']})", 0, 1)
                     self.cell(0, 6, f"Total: ${row['total']}", 0, 1)
                     self.cell(0, 6, f"Método de Pago: {row['metodo_pago']}", 0, 1)
