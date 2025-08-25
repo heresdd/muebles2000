@@ -241,16 +241,26 @@
             return;
         }
         
-        const cliente_cedula_select = document.getElementById('cliente_cedula');
-        if (!cliente_cedula_select.value) {
-            alert('Debes seleccionar un cliente para registrar la venta.');
+        const cliente_cedula = document.getElementById('cliente_cedula_input').value;
+        if (!cliente_cedula) {
+            alert('Debes ingresar la cédula del cliente para registrar la venta.');
             return;
         }
 
-        const cliente_nombre = cliente_cedula_select.options[cliente_cedula_select.selectedIndex].text;
+        // Buscar el nombre del cliente en el datalist
+        const clientesOptions = document.getElementById('clientes_list').options;
+        let cliente_nombre = "Cliente no encontrado";
+        for (let option of clientesOptions) {
+            if (option.value === cliente_cedula) {
+                // Extraer el nombre del texto de la opción (formato: cedula - nombre)
+                cliente_nombre = option.textContent.split(' - ')[1] || cliente_cedula;
+                break;
+            }
+        }
+
         const metodo_pago_text = document.getElementById('metodo_pago').options[document.getElementById('metodo_pago').selectedIndex].text;
 
-        document.getElementById('modal-cliente').textContent = cliente_nombre;
+        document.getElementById('modal-cliente').textContent = `${cliente_nombre} (${cliente_cedula})`;
         document.getElementById('modal-metodo-pago').textContent = metodo_pago_text;
         document.getElementById('modal-total').textContent = `$${totalVentaSpan.textContent}`;
         
@@ -270,6 +280,7 @@
         productosVendidosInput.value = JSON.stringify(productosEnVenta);
         document.getElementById('formNuevaVenta').submit();
     });
+
     document.addEventListener('DOMContentLoaded', function() {
         const clienteInput = document.getElementById('cliente_cedula_input');
         const clientesList = document.getElementById('clientes_list');
@@ -282,7 +293,7 @@
             }
 
             try {
-                // Llama a la nueva ruta en el servidor para buscar clientes
+                // Llama a la ruta en el servidor para buscar clientes por cédula
                 const response = await fetch(`/buscar_cliente?q=${query}`);
                 const clientes = await response.json();
                 
@@ -290,7 +301,7 @@
                 clientes.forEach(cliente => {
                     const option = document.createElement('option');
                     option.value = cliente.cedula;
-                    option.textContent = `${cliente.nombre} (${cliente.cedula})`;
+                    option.textContent = `${cliente.cedula} - ${cliente.nombre}`;
                     clientesList.appendChild(option);
                 });
 
@@ -299,6 +310,7 @@
             }
         });
     });
+
     // Inicializar el renderizado para mostrar el texto "Aún no se han añadido productos."
     renderizarProductosEnVenta();
 </script>
