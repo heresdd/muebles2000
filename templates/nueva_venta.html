@@ -15,7 +15,7 @@
                 <form id="formNuevaVenta" action="{{ url_for('nueva_venta') }}" method="POST">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label for="cliente_cedula" class="form-label">Cédula del Cliente</label>
+                            <label for="cliente_cedula" class="form-label">Buscar Cliente (Nombre o Cédula)</label>
                             <input type="text" class="form-control" id="cliente_cedula_input" name="cliente_cedula" required autocomplete="off" list="clientes_list">
                             <datalist id="clientes_list"></datalist>
                         </div>
@@ -293,7 +293,7 @@
             }
 
             try {
-                // Llama a la ruta en el servidor para buscar clientes por cédula
+                // Llama a la ruta en el servidor para buscar clientes por nombre o cédula
                 const response = await fetch(`/buscar_cliente?q=${query}`);
                 const clientes = await response.json();
                 
