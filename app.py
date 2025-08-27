@@ -316,8 +316,8 @@ def buscar_cliente():
     try:
         db = connect_to_db()
         cursor = db.cursor()
-        # Buscar por cédula
-        cursor.execute("SELECT cedula, nombre FROM clientes WHERE cedula ILIKE %s ORDER BY cedula LIMIT 10", (f'%{q}%',))
+        # Buscar por nombre O cédula
+        cursor.execute("SELECT cedula, nombre FROM clientes WHERE nombre ILIKE %s OR cedula ILIKE %s ORDER BY nombre LIMIT 10", (f'%{q}%', f'%{q}%'))
         clientes = cursor.fetchall()
         # Formatear la respuesta: list of dict con cedula y nombre
         resultados = [{'cedula': row[0], 'nombre': row[1]} for row in clientes]
@@ -369,7 +369,7 @@ def historial_ventas():
             params.append(fecha_inicio)
             
         if fecha_fin:
-            conditions.append("v.fecha <= %s")
+            conditions.append("v.fenda <= %s")
             params.append(fecha_fin)
             
         if conditions:
@@ -480,7 +480,7 @@ def generar_reporte_ventas():
                 self.set_font('Arial', '', 10)
                 for index, row in data.iterrows():
                     self.cell(0, 6, f"ID de Venta: {row['id']}", 0, 1)
-                    self.cell(0, 6, f"Fecha: {row['fenda']}", 0, 1)
+                    self.cell(0, 6, f"Fecha: {row['fecha']}", 0, 1)
                     self.cell(0, 6, f"Cliente: {row['nombre_cliente']} ({row['cedula_cliente']})", 0, 1)
                     self.cell(0, 6, f"Total: ${row['total']}", 0, 1)
                     self.cell(0, 6, f"Método de Pago: {row['metodo_pago']}", 0, 1)
